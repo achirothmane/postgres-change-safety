@@ -50,9 +50,13 @@ jobs:
                 password: "Kestra123!"
           YAML
 
-          nohup /tmp/kestra server local --config /tmp/kestra-config.yml \
-            >/tmp/kestra-server.log 2>&1 &
-          echo $! >/tmp/kestra.pid
+          mkdir -p /tmp/kestra-runtime
+          (
+            cd /tmp/kestra-runtime
+            nohup /tmp/kestra server local --config /tmp/kestra-config.yml \
+              >/tmp/kestra-server.log 2>&1 &
+            echo $! >/tmp/kestra.pid
+          )
 
           for i in $(seq 1 90); do
             if curl -fsS http://localhost:8080/ >/dev/null; then
@@ -106,7 +110,11 @@ jobs:
           ' /tmp/execution-record.json
 
           # Kestra must not mutate tracked or untracked repository content.
-          test -z "$(git status --porcelain)"
+          repo_status="$(git status --porcelain)"
+          if [ -n "$repo_status" ]; then
+            printf '%s\n' "Repository mutation detected:" "$repo_status"
+            exit 1
+          fi
 
       - name: Upload Kestra spike evidence
         if: always()
