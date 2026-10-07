@@ -1,0 +1,64 @@
+name: kestra-execution-fabric-spike
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  kestra-spike:
+    if: github.head_ref == 'spike/kestra-execution-fabric'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Baseline strict benchmark
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/src"             python -m pgchangesafety.cli benchmark             benchmarks/blind_cases.json --strict --json             >/tmp/direct-benchmark.json
+
+      - name: Run through Execution Fabric Adapter v0.1
+        run: |
+          source integration/kestra/execution-fabric-adapter.sh
+          ef_print_identity
+          ef_download_kestra
+          ef_start_kestra
+          ef_create_flow integration/kestra/postgres-change-safety-spike.yml
+          ef_execute_flow             ai_native_engineering.execution             postgres_change_safety_execution_spike             run_postgres_change_safety             -F "postgres_change_safety_root=$GITHUB_WORKSPACE"
+          ef_assert_execution_envelope semantic_authority postgres-change-safety
+
+          jq -e '
+            .process_exit == 0 and
+            .benchmark_pass == true and
+            (.artifacts.benchmark_report.sha256 | length == 64) and
+            .benchmark_metrics.false_causal_attributions == 0 and
+            .benchmark_metrics.false_clearance_events == 0
+          ' "$EF_EXECUTION_RECORD"
+
+          ef_assert_checkout_clean "$GITHUB_WORKSPACE"
+
+      - name: Upload Kestra spike evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kestra-postgres-change-safety-spike
+          path: |
+            /tmp/direct-benchmark.json
+            /tmp/kestra-server.log
+            /tmp/kestra-flow-create.json
+            /tmp/kestra-execution.json
+            /tmp/kestra-task-outputs.json
+            /tmp/execution-record.json
+          if-no-files-found: warn
+          retention-days: 7
