@@ -26,7 +26,7 @@ jobs:
 
       - name: Baseline strict benchmark
         run: |
-          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/src" \
             python -m pgchangesafety.cli benchmark \
             benchmarks/blind_cases.json --strict --json \
             >/tmp/direct-benchmark.json
