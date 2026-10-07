@@ -26,95 +26,27 @@ jobs:
 
       - name: Baseline strict benchmark
         run: |
-          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/src" \
-            python -m pgchangesafety.cli benchmark \
-            benchmarks/blind_cases.json --strict --json \
-            >/tmp/direct-benchmark.json
+          PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$GITHUB_WORKSPACE/src"             python -m pgchangesafety.cli benchmark             benchmarks/blind_cases.json --strict --json             >/tmp/direct-benchmark.json
 
-      - name: Download Kestra OSS 2.0.5
+      - name: Run through Execution Fabric Adapter v0.1
         run: |
-          curl -fL --retry 3 \
-            -o /tmp/kestra \
-            https://github.com/kestra-io/kestra/releases/download/v2.0.5/kestra-2.0.5
-          chmod +x /tmp/kestra
-
-      - name: Start Kestra OSS local server
-        env:
-          KESTRA_PLUGINS_AUTO_INSTALL_ENABLED: "true"
-        run: |
-          cat >/tmp/kestra-config.yml <<'YAML'
-          kestra:
-            server:
-              basic-auth:
-                username: ci@kestra.io
-                password: "Kestra123!"
-          YAML
-
-          mkdir -p /tmp/kestra-runtime
-          (
-            cd /tmp/kestra-runtime
-            nohup /tmp/kestra server local --config /tmp/kestra-config.yml \
-              >/tmp/kestra-server.log 2>&1 &
-            echo $! >/tmp/kestra.pid
-          )
-
-          for i in $(seq 1 90); do
-            if curl -fsS http://localhost:8080/ >/dev/null; then
-              exit 0
-            fi
-            sleep 2
-          done
-
-          cat /tmp/kestra-server.log
-          exit 1
-
-      - name: Create spike flow
-        run: |
-          set -o pipefail
-          curl -fsS -u 'ci@kestra.io:Kestra123!' -X POST \
-            http://localhost:8080/api/v1/main/flows \
-            -H 'Content-Type: application/x-yaml' \
-            --data-binary @integration/kestra/postgres-change-safety-spike.yml \
-            | tee /tmp/kestra-flow-create.json
-
-      - name: Execute PostgreSQL Change Safety through Kestra
-        run: |
-          set -o pipefail
-
-          curl -fsS -u 'ci@kestra.io:Kestra123!' -X POST \
-            'http://localhost:8080/api/v1/main/executions/ai_native_engineering.execution/postgres_change_safety_execution_spike?wait=true' \
-            -F "postgres_change_safety_root=$GITHUB_WORKSPACE" \
-            | tee /tmp/kestra-execution.json
-
-          jq -e '.state.current == "SUCCESS"' /tmp/kestra-execution.json
-
-          execution_id="$(jq -r '.id' /tmp/kestra-execution.json)"
-          task_run_id="$(jq -r '.taskRunList[] | select(.taskId == "run_postgres_change_safety") | .id' /tmp/kestra-execution.json)"
-
-          curl -fsS -u 'ci@kestra.io:Kestra123!' \
-            "http://localhost:8080/api/v1/main/outputs/tasks/$execution_id/$task_run_id" \
-            | tee /tmp/kestra-task-outputs.json
-
-          jq -er '.vars.execution_record' /tmp/kestra-task-outputs.json \
-            | tee /tmp/execution-record.json
+          source integration/kestra/execution-fabric-adapter.sh
+          ef_print_identity
+          ef_download_kestra
+          ef_start_kestra
+          ef_create_flow integration/kestra/postgres-change-safety-spike.yml
+          ef_execute_flow             ai_native_engineering.execution             postgres_change_safety_execution_spike             run_postgres_change_safety             -F "postgres_change_safety_root=$GITHUB_WORKSPACE"
+          ef_assert_execution_envelope semantic_authority postgres-change-safety
 
           jq -e '
-            .orchestration_state == "KNOWN_SUCCESS" and
             .process_exit == 0 and
             .benchmark_pass == true and
-            .semantic_authority == "postgres-change-safety" and
-            .orchestrator_mutates_evidence == false and
             (.artifacts.benchmark_report.sha256 | length == 64) and
             .benchmark_metrics.false_causal_attributions == 0 and
             .benchmark_metrics.false_clearance_events == 0
-          ' /tmp/execution-record.json
+          ' "$EF_EXECUTION_RECORD"
 
-          # Kestra must not mutate tracked or untracked repository content.
-          repo_status="$(git status --porcelain)"
-          if [ -n "$repo_status" ]; then
-            printf '%s\n' "Repository mutation detected:" "$repo_status"
-            exit 1
-          fi
+          ef_assert_checkout_clean "$GITHUB_WORKSPACE"
 
       - name: Upload Kestra spike evidence
         if: always()
