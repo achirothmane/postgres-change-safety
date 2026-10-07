@@ -62,7 +62,7 @@ tasks:
       set +e
       (
         cd "$root"
-        PYTHONPATH="$root/src" python3 -m pgchangesafety.cli benchmark           benchmarks/blind_cases.json           --strict           --json
+        PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$root/src" python3 -m pgchangesafety.cli benchmark           benchmarks/blind_cases.json           --strict           --json
       ) >"$report" 2>"$stderr_log"
       process_exit=$?
       set -e
