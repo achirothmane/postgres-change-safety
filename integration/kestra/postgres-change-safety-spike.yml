@@ -1,0 +1,165 @@
+id: postgres_change_safety_execution_spike
+namespace: ai_native_engineering.execution
+
+description: >
+  Bounded Kestra OSS spike executing PostgreSQL Change Safety's strict blind benchmark.
+  Kestra observes execution and preserves artifacts; PostgreSQL Change Safety remains
+  the authority over regression, attribution, abstention, and false-clearance semantics.
+
+inputs:
+  - id: postgres_change_safety_root
+    type: STRING
+    description: Absolute path to the checked-out postgres-change-safety repository.
+
+tasks:
+  - id: run_postgres_change_safety
+    type: io.kestra.plugin.scripts.shell.Script
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    outputFiles:
+      - "run/execution-record.json"
+      - "run/benchmark-report.json"
+      - "run/stdout.log"
+      - "run/stderr.log"
+    script: |
+      set -u
+
+      root="{{ inputs.postgres_change_safety_root }}"
+      run_root="{{ workingDir }}/run"
+      report="$run_root/benchmark-report.json"
+      stdout_log="$run_root/stdout.log"
+      stderr_log="$run_root/stderr.log"
+      record="$run_root/execution-record.json"
+
+      mkdir -p "$run_root"
+
+      if [ ! -f "$root/pyproject.toml" ] || [ ! -f "$root/src/pgchangesafety/cli.py" ]; then
+        printf '%s\n' "PostgreSQL Change Safety checkout not found at: $root" > "$stderr_log"
+        python3 - "$record" "{{ execution.id }}" "$root" <<'PY'
+      import json, sys
+      path, execution_id, root = sys.argv[1:4]
+      payload = {
+          "schema_version": 1,
+          "orchestration_state": "UNKNOWN",
+          "reason": "POSTGRES_CHANGE_SAFETY_CHECKOUT_UNAVAILABLE",
+          "kestra_execution_id": execution_id,
+          "postgres_change_safety_root": root,
+          "process_exit": None,
+          "benchmark_pass": None,
+          "semantic_authority": "postgres-change-safety",
+          "orchestrator_mutates_evidence": False,
+          "artifacts": {}
+      }
+      with open(path, "w", encoding="utf-8") as f:
+          json.dump(payload, f, indent=2, sort_keys=True)
+      PY
+        exit 3
+      fi
+
+      product_commit="$(git -C "$root" rev-parse HEAD 2>/dev/null || printf UNKNOWN)"
+      started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      set +e
+      (
+        cd "$root"
+        PYTHONPATH="$root/src" python3 -m pgchangesafety.cli benchmark           benchmarks/blind_cases.json           --strict           --json
+      ) >"$report" 2>"$stderr_log"
+      process_exit=$?
+      set -e
+
+      cp "$report" "$stdout_log"
+      ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      python3 -         "$record"         "{{ execution.id }}"         "$product_commit"         "$process_exit"         "$started_at"         "$ended_at"         "$report" <<'PY'
+      import hashlib
+      import json
+      import os
+      import sys
+
+      record_path, execution_id, commit, exit_code, started_at, ended_at, report_path = sys.argv[1:8]
+      exit_code = int(exit_code)
+
+      report = None
+      parse_error = None
+      if os.path.isfile(report_path) and os.path.getsize(report_path) > 0:
+          try:
+              with open(report_path, encoding="utf-8") as f:
+                  report = json.load(f)
+          except Exception as exc:
+              parse_error = repr(exc)
+
+      artifact = {}
+      if os.path.isfile(report_path):
+          h = hashlib.sha256()
+          with open(report_path, "rb") as f:
+              for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                  h.update(chunk)
+          artifact = {
+              "benchmark_report": {
+                  "sha256": h.hexdigest(),
+                  "bytes": os.path.getsize(report_path),
+              }
+          }
+
+      metrics = None if report is None else report.get("metrics", {})
+      benchmark_pass = None
+      if metrics is not None:
+          benchmark_pass = (
+              metrics.get("passed") == metrics.get("cases")
+              and metrics.get("detection_accuracy") == 1.0
+              and metrics.get("provable_cause_accuracy") == 1.0
+              and metrics.get("unknown_abstention_accuracy") == 1.0
+              and metrics.get("false_causal_attributions") == 0
+              and metrics.get("workload_passed") == metrics.get("workload_cases")
+              and metrics.get("workload_regression_recall") == 1.0
+              and metrics.get("workload_false_positives") == 0
+              and metrics.get("false_clearance_events") == 0
+          )
+
+      if report is None:
+          state = "UNKNOWN"
+          reason = "BENCHMARK_REPORT_UNREADABLE"
+      elif exit_code != 0:
+          state = "KNOWN_FAILURE"
+          reason = "STRICT_BENCHMARK_NONZERO_EXIT"
+      elif benchmark_pass is not True:
+          state = "KNOWN_FAILURE"
+          reason = "BENCHMARK_CONTRACT_FAILED"
+      else:
+          state = "KNOWN_SUCCESS"
+          reason = "STRICT_BENCHMARK_AND_REPORT_OBSERVED"
+
+      record = {
+          "schema_version": 1,
+          "orchestration_state": state,
+          "reason": reason,
+          "kestra_execution_id": execution_id,
+          "postgres_change_safety_commit": commit,
+          "process_exit": exit_code,
+          "started_at": started_at,
+          "ended_at": ended_at,
+          "benchmark_pass": benchmark_pass,
+          "benchmark_metrics": metrics,
+          "parse_error": parse_error,
+          "semantic_authority": "postgres-change-safety",
+          "orchestrator_mutates_evidence": False,
+          "artifacts": artifact,
+      }
+
+      with open(record_path, "w", encoding="utf-8") as f:
+          json.dump(record, f, indent=2, sort_keys=True)
+      PY
+
+      python3 - "$record" <<'PY'
+      import json, sys
+      with open(sys.argv[1], encoding="utf-8") as f:
+          record = json.load(f)
+      if record["orchestration_state"] != "KNOWN_SUCCESS":
+          raise SystemExit(4)
+      print("::" + json.dumps({"outputs": {"execution_record": json.dumps(record, sort_keys=True)}}) + "::")
+      PY
+
+outputs:
+  - id: execution_record
+    type: STRING
+    value: "{{ outputs.run_postgres_change_safety.vars.execution_record }}"
