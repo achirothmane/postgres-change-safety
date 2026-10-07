@@ -1,0 +1,124 @@
+name: kestra-execution-fabric-spike
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  kestra-spike:
+    if: github.head_ref == 'spike/kestra-execution-fabric'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Baseline strict benchmark
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE/src" \
+            python -m pgchangesafety.cli benchmark \
+            benchmarks/blind_cases.json --strict --json \
+            >/tmp/direct-benchmark.json
+
+      - name: Download Kestra OSS 2.0.5
+        run: |
+          curl -fL --retry 3 \
+            -o /tmp/kestra \
+            https://github.com/kestra-io/kestra/releases/download/v2.0.5/kestra-2.0.5
+          chmod +x /tmp/kestra
+
+      - name: Start Kestra OSS local server
+        env:
+          KESTRA_PLUGINS_AUTO_INSTALL_ENABLED: "true"
+        run: |
+          cat >/tmp/kestra-config.yml <<'YAML'
+          kestra:
+            server:
+              basic-auth:
+                username: ci@kestra.io
+                password: "Kestra123!"
+          YAML
+
+          nohup /tmp/kestra server local --config /tmp/kestra-config.yml \
+            >/tmp/kestra-server.log 2>&1 &
+          echo $! >/tmp/kestra.pid
+
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:8080/ >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          cat /tmp/kestra-server.log
+          exit 1
+
+      - name: Create spike flow
+        run: |
+          set -o pipefail
+          curl -fsS -u 'ci@kestra.io:Kestra123!' -X POST \
+            http://localhost:8080/api/v1/main/flows \
+            -H 'Content-Type: application/x-yaml' \
+            --data-binary @integration/kestra/postgres-change-safety-spike.yml \
+            | tee /tmp/kestra-flow-create.json
+
+      - name: Execute PostgreSQL Change Safety through Kestra
+        run: |
+          set -o pipefail
+
+          curl -fsS -u 'ci@kestra.io:Kestra123!' -X POST \
+            'http://localhost:8080/api/v1/main/executions/ai_native_engineering.execution/postgres_change_safety_execution_spike?wait=true' \
+            -F "postgres_change_safety_root=$GITHUB_WORKSPACE" \
+            | tee /tmp/kestra-execution.json
+
+          jq -e '.state.current == "SUCCESS"' /tmp/kestra-execution.json
+
+          execution_id="$(jq -r '.id' /tmp/kestra-execution.json)"
+          task_run_id="$(jq -r '.taskRunList[] | select(.taskId == "run_postgres_change_safety") | .id' /tmp/kestra-execution.json)"
+
+          curl -fsS -u 'ci@kestra.io:Kestra123!' \
+            "http://localhost:8080/api/v1/main/outputs/tasks/$execution_id/$task_run_id" \
+            | tee /tmp/kestra-task-outputs.json
+
+          jq -er '.vars.execution_record' /tmp/kestra-task-outputs.json \
+            | tee /tmp/execution-record.json
+
+          jq -e '
+            .orchestration_state == "KNOWN_SUCCESS" and
+            .process_exit == 0 and
+            .benchmark_pass == true and
+            .semantic_authority == "postgres-change-safety" and
+            .orchestrator_mutates_evidence == false and
+            (.artifacts.benchmark_report.sha256 | length == 64) and
+            .benchmark_metrics.false_causal_attributions == 0 and
+            .benchmark_metrics.false_clearance_events == 0
+          ' /tmp/execution-record.json
+
+          # Kestra must not mutate tracked or untracked repository content.
+          test -z "$(git status --porcelain)"
+
+      - name: Upload Kestra spike evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kestra-postgres-change-safety-spike
+          path: |
+            /tmp/direct-benchmark.json
+            /tmp/kestra-server.log
+            /tmp/kestra-flow-create.json
+            /tmp/kestra-execution.json
+            /tmp/kestra-task-outputs.json
+            /tmp/execution-record.json
+          if-no-files-found: warn
+          retention-days: 7
