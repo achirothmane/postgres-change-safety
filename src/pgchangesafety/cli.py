@@ -10,6 +10,7 @@ from .benchmark import render_benchmark, run_blind_benchmark, strict_pass
 from .demo import build_demo_assessment
 from .engine import assess
 from .plan import attach_plan_samples
+from .report import render_html
 from .snapshot import (
     build_assessment_payload,
     capture_live,
@@ -119,9 +120,13 @@ def _render_text(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _emit(result: dict[str, Any], fmt: str, output: Path | None) -> None:
+def _emit(
+    result: dict[str, Any], fmt: str, output: Path | None, *, synthetic: bool = False
+) -> None:
     if fmt == "json":
         rendered = json.dumps(result, indent=2, sort_keys=True)
+    elif fmt == "html":
+        rendered = render_html(result, synthetic=synthetic)
     else:
         rendered = _render_text(result)
 
@@ -147,16 +152,17 @@ def main() -> None:
     )
     demo_cmd.add_argument(
         "--format",
-        choices=["text", "json"],
+        choices=["text", "json", "html"],
         default="text",
     )
+    demo_cmd.add_argument("--output", type=Path)
 
     assess_cmd = sub.add_parser(
         "assess",
         help="Assess a complete JSON comparison payload",
     )
     assess_cmd.add_argument("input", type=Path)
-    assess_cmd.add_argument("--format", choices=["text", "json"], default="text")
+    assess_cmd.add_argument("--format", choices=["text", "json", "html"], default="text")
     assess_cmd.add_argument("--output", type=Path)
 
     import_cmd = sub.add_parser(
@@ -238,7 +244,7 @@ def main() -> None:
     compare_cmd.add_argument("--coverage", type=Path)
     compare_cmd.add_argument("--experiments", type=Path)
     compare_cmd.add_argument("--thresholds", type=Path)
-    compare_cmd.add_argument("--format", choices=["text", "json"], default="text")
+    compare_cmd.add_argument("--format", choices=["text", "json", "html"], default="text")
     compare_cmd.add_argument("--output", type=Path)
 
     benchmark_cmd = sub.add_parser(
@@ -262,12 +268,14 @@ def main() -> None:
 
     if args.command == "demo":
         result = build_demo_assessment()
-        if args.format == "json":
-            print(json.dumps(result, indent=2, sort_keys=True))
+        if args.format == "text":
+            rendered = "Synthetic demonstration — not production evidence.\n\n" + _render_text(result)
+            if args.output is None:
+                print(rendered)
+            else:
+                args.output.write_text(rendered + "\n", encoding="utf-8")
         else:
-            print("Synthetic demonstration — not production evidence.")
-            print()
-            print(_render_text(result))
+            _emit(result, args.format, args.output, synthetic=True)
         return
 
     if args.command == "assess":

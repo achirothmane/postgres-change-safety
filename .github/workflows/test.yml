@@ -20,6 +20,11 @@ jobs:
       - run: pip install -e .
       - run: pytest -q
       - run: pgchangesafe assess examples/major-upgrade.json
+      - name: Offline HTML report smoke test
+        run: |
+          pgchangesafe demo --format html --output /tmp/pgchangesafe-demo.html
+          test -s /tmp/pgchangesafe-demo.html
+          grep -q 'SYNTHETIC DEMONSTRATION' /tmp/pgchangesafe-demo.html
       - name: Synthetic blind regression benchmark
         if: matrix.python-version == '3.12'
         run: pgchangesafe benchmark benchmarks/blind_cases.json --strict

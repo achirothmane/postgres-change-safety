@@ -25,10 +25,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/othy19904-eng/postgres-change-safety"
-Repository = "https://github.com/othy19904-eng/postgres-change-safety"
-Issues = "https://github.com/othy19904-eng/postgres-change-safety/issues"
-Changelog = "https://github.com/othy19904-eng/postgres-change-safety/releases"
+Homepage = "https://github.com/achirothmane/postgres-change-safety"
+Repository = "https://github.com/achirothmane/postgres-change-safety"
+Issues = "https://github.com/achirothmane/postgres-change-safety/issues"
+Changelog = "https://github.com/achirothmane/postgres-change-safety/releases"
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.2"]
