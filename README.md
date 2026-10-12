@@ -1,7 +1,7 @@
 # PostgreSQL Change Safety
 
-[![CI](https://github.com/othy19904-eng/postgres-change-safety/actions/workflows/test.yml/badge.svg)](https://github.com/othy19904-eng/postgres-change-safety/actions/workflows/test.yml)
-[![Release](https://img.shields.io/badge/release-v0.10.0-blue)](https://github.com/othy19904-eng/postgres-change-safety/releases/tag/v0.10.0)
+[![CI](https://github.com/achirothmane/postgres-change-safety/actions/workflows/test.yml/badge.svg)](https://github.com/achirothmane/postgres-change-safety/actions/workflows/test.yml)
+[![Release](https://img.shields.io/badge/release-v0.10.0-blue)](https://github.com/achirothmane/postgres-change-safety/releases/tag/v0.10.0)
 
 **Detect PostgreSQL change regressions, show the evidence behind the suspected cause, and make missing coverage explicit.**
 
@@ -9,12 +9,28 @@ PostgreSQL Change Safety is an experimental evidence layer for major upgrades an
 
 It is **not** a production certification authority and does not make a GO/NO-GO decision for you.
 
+## Standalone offline evidence reports
+
+Generate a printable, shareable HTML evidence report without a hosted service:
+
+~~~bash
+pgchangesafe demo --format html --output demo.html
+pgchangesafe compare baseline-window.json candidate-window.json --format json --output assessment.json
+pgchangesafe compare baseline-window.json candidate-window.json --format html --output assessment.html
+~~~
+
+The demo is explicitly synthetic. Real reports retain missing evidence as UNKNOWN
+and are **not deployment authorization**. The HTML uses no external scripts or
+assets, escapes values, and displays a canonical assessment JSON SHA-256. See
+[reporting and hash verification](docs/REPORTING.md). Review reports for sensitive
+infrastructure details before sharing.
+
 ## 60-second demo — no PostgreSQL required
 
 Install the tagged release directly from GitHub:
 
 ```bash
-python -m pip install "postgres-change-safety @ git+https://github.com/othy19904-eng/postgres-change-safety.git@v0.10.0"
+python -m pip install "postgres-change-safety @ git+https://github.com/achirothmane/postgres-change-safety.git@v0.10.0"
 pgchangesafe demo
 ```
 
@@ -43,7 +59,7 @@ Prerequisite: `pg_stat_statements` must be available on the PostgreSQL environme
 Install the PostgreSQL connector:
 
 ```bash
-python -m pip install "postgres-change-safety[postgres] @ git+https://github.com/othy19904-eng/postgres-change-safety.git@v0.10.0"
+python -m pip install "postgres-change-safety[postgres] @ git+https://github.com/achirothmane/postgres-change-safety.git@v0.10.0"
 ```
 
 Use the same private fingerprint key on baseline and candidate so the same SQL shape can be matched without persisting raw SQL:
