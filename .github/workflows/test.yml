@@ -29,6 +29,35 @@ jobs:
         if: matrix.python-version == '3.12'
         run: pgchangesafe benchmark benchmarks/blind_cases.json --strict
 
+  package-install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build distributable wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+          test -n "$(find dist -name '*.whl' -print -quit)"
+      - name: Install wheel in a clean environment and run offline report
+        run: |
+          python -m venv /tmp/pgchangesafe-wheel-test
+          /tmp/pgchangesafe-wheel-test/bin/python -m pip install dist/*.whl
+          cd /tmp
+          /tmp/pgchangesafe-wheel-test/bin/pgchangesafe demo --format html --output /tmp/pgchangesafe-package-demo.html
+          test -s /tmp/pgchangesafe-package-demo.html
+          grep -q 'SYNTHETIC DEMONSTRATION' /tmp/pgchangesafe-package-demo.html
+          if grep -q '<script' /tmp/pgchangesafe-package-demo.html; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: postgres-change-safety-wheel-smoke
+          path: |
+            dist/*.whl
+            /tmp/pgchangesafe-package-demo.html
+          if-no-files-found: error
+
   real-postgres-benchmark:
     runs-on: ubuntu-latest
     strategy:
