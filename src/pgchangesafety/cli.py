@@ -12,6 +12,7 @@ from .demo import build_demo_assessment
 from .engine import assess
 from .plan import attach_plan_samples
 from .report import render_html
+from .validation import read_json
 from .snapshot import (
     build_assessment_payload,
     capture_live,
@@ -20,26 +21,10 @@ from .snapshot import (
 )
 
 
-def _unique_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("JSON contains a duplicate object member")
-        result[key] = value
-    return result
-
-
-def _reject_constant(value: str) -> None:
-    raise ValueError("JSON contains a non-finite constant")
-
-
 def _load_json(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
-    return json.loads(
-        path.read_text(encoding="utf-8"),
-        object_pairs_hook=_unique_members, parse_constant=_reject_constant,
-    )
+    return read_json(path)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

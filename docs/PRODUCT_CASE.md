@@ -147,8 +147,62 @@ commitment. Preserve this decision if conditions remain unchanged.
 
 ## Execution results
 
-Pending implementation and checks. The baseline defect was reproduced locally:
-valid 10→40 ms observations produced one regression; appending a duplicate with
-10 ms suppressed it and yielded HIGH evidence with no unknowns. Missing or negative
-candidate timing did likewise. The baseline test suite and new acceptance controls
-will be recorded separately; no result below is assumed from this observation.
+**VERIFIED within the specified repair scope:**
+
+- Baseline main `624b8bb66e1b7b88980855f060f666e2984b4fa2`: all 40 existing tests
+  passed. A valid 10→40 ms comparison produced one regression; appending a duplicate
+  with 10 ms suppressed it and yielded HIGH evidence with no unknowns. Missing or
+  negative candidate timing did likewise. The first 55 new acceptance cases failed
+  before repair; seven boundary/unknown controls were subsequently added.
+- [Acceptance contract commit](https://github.com/achirothmane/postgres-change-safety/commit/642fc78c6fb2d9144493d1543bb6f7cb8d12bdc4)
+  contains the contract/tests with the pre-repair source. The repair is a separate
+  commit, so the negative control can be rerun without accepting this narrative.
+- Repair commit `074bdb454722c41d93f3b68d5bf92f4b7f497f01`: all 102 tests pass
+  locally (Python 3.12) and in CI (Python 3.10/3.12/3.13). The synthetic blind
+  benchmark passes 12/12 cases with no observed false causal attribution or
+  clearance event. This is a small repository-authored suite, not measured
+  generalization to customer workloads.
+- [GitHub Actions run 39659462212](https://github.com/achirothmane/postgres-change-safety/actions/runs/39659462212)
+  succeeded in all 13 jobs: unit matrix, clean wheel install/offline report,
+  PostgreSQL 14/17 benchmarks, multi-query workloads (three trials), pgss windows,
+  cross-version fingerprints and plan variants. The run started at 19:11:39Z and
+  completed by 19:12:36Z on 2026-10-21 (57 seconds wall time; not engineering labor
+  or billable compute time). `git diff --check` also passed locally.
+- Controlled-workload input, benchmark result and sample report were uploaded for
+  each of three trials. [Trial 1 artifact](https://github.com/achirothmane/postgres-change-safety/actions/runs/39659462212/artifacts/12373216813)
+  archive digest: `2b323b38d4f368818da457a35724119eae08459eb0450b3dd008378e5bf4b8f0`.
+  Metadata/upload logs were inspected; the binary archive was not independently
+  downloaded in this session. GitHub currently records expiry on 2027-01-19;
+  preserve needed evidence before expiry. These are controlled database runs,
+  not customer workloads or production acceptance.
+
+Acceptance: **6/6 of A1–A6 supported**, with the independence limits in the table.
+The same AI execution session authored tests and repair; the prior-source failures,
+product-derived criteria, PostgreSQL documentation and separately executed CI add
+evidence but do not constitute an external expert audit or held-out evaluation.
+[PR #15](https://github.com/achirothmane/postgres-change-safety/pull/15) remains
+unmerged; no new production version was published.
+
+One code repair passed the initial local suite; subsequent boundary tests passed
+too. A general rework rate and total time to verified deliverable were not
+instrumented and are **UNRESOLVED**. There were zero founder intervention requests
+during the authorized trial; no lifecycle-wide autonomy percentage is inferred.
+New paid-service purchases: none. Token/provider billing, CI charges, loaded labor
+and opportunity cost are unavailable, so total cost per verified deliverable is
+**UNRESOLVED**, not zero.
+
+**SUPPORTED BUT LIMITED:** bounded in-session agentic research → acceptance →
+repair → CI → reviewable PR. **NOT TESTED:** customer task success, an independent
+specialist review, live installation, production release, acquisition, paid pilot,
+settlement, collection, renewal, sustainable economics, multi-agent benefit and
+continuous autonomous operation.
+
+The improvement retained in code is validation **before lossy indexing**, plus
+negative acceptance controls and preserved benchmark inputs. Future work should
+reuse these checks, reassess identities/measurement comparability for the target
+customer, and run the commercial test before substantial product expansion.
+
+Resume from PR #15's actual head/checks and unresolved commercial gates. Review the
+acceptance contract and changed inputs; do not restart settled market/category
+research unless its assumptions change. The next executable step is an authorized,
+qualified-buyer pilot and verified seller/collection route, not another platform.

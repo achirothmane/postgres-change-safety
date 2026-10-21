@@ -1,8 +1,30 @@
 """Narrow evidence invariants; validation does not authenticate measurements."""
 from __future__ import annotations
 
+import json
 from math import isfinite
+from pathlib import Path
 from typing import Any
+
+
+def _unique_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("JSON contains a duplicate object member")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value: str) -> None:
+    raise ValueError("JSON contains a non-finite constant")
+
+
+def read_json(path: Path) -> Any:
+    return json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_unique_members, parse_constant=_reject_constant,
+    )
 
 
 def number(value: Any, path: str, *, minimum: float = 0.0, positive: bool = False) -> float:

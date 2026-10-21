@@ -149,19 +149,21 @@ def test_cli_invalid_input_leaves_no_success_artifact(tmp_path: Path, command, f
     assert output.read_text() == "previous valid artifact"
 
 
+@pytest.mark.parametrize("command", ["assess", "benchmark"])
 @pytest.mark.parametrize("text", [
     '{"baseline": {}, "baseline": {}}',
     '{"coverage": {"workload_volume_pct": NaN}}',
     '{"coverage": {"workload_volume_pct": Infinity}}',
     '{"coverage": {"workload_volume_pct": -Infinity}}',
 ])
-def test_cli_rejects_ambiguous_json(tmp_path: Path, text):
+def test_cli_rejects_ambiguous_json(tmp_path: Path, text, command):
     source = tmp_path / "input.json"
     source.write_text(text)
     output = tmp_path / "report.html"
+    args = ["--format", "html", "--output", str(output)] if command == "assess" else ["--json"]
     run = subprocess.run(
-        [sys.executable, "-m", "pgchangesafety.cli", "assess", str(source),
-         "--format", "html", "--output", str(output)], capture_output=True, text=True,
+        [sys.executable, "-m", "pgchangesafety.cli", command, str(source), *args],
+        capture_output=True, text=True,
     )
     assert run.returncode == 2
     assert "invalid input" in run.stderr.lower()
