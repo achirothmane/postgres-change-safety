@@ -176,6 +176,14 @@ commitment. Preserve this decision if conditions remain unchanged.
   preserve needed evidence before expiry. These are controlled database runs,
   not customer workloads or production acceptance.
 
+A subsequent consistency review found that the benchmark command used a separate
+JSON reader. Four new negative cases failed there; sharing the strict reader
+closed that gap. Final code commit `51b7ae04b29b280f488df20e6da3aa224df810c8`
+passes **106 tests**, with all 13 jobs passing again in
+[run 39660639104](https://github.com/achirothmane/postgres-change-safety/actions/runs/39660639104)
+(19:19:37Z–19:20:51Z, 74 seconds). This is a documented follow-up correction,
+not an assertion that the first repair covered every ingestion path.
+
 Acceptance: **6/6 of A1–A6 supported**, with the independence limits in the table.
 The same AI execution session authored tests and repair; the prior-source failures,
 product-derived criteria, PostgreSQL documentation and separately executed CI add
@@ -183,8 +191,8 @@ evidence but do not constitute an external expert audit or held-out evaluation.
 [PR #15](https://github.com/achirothmane/postgres-change-safety/pull/15) remains
 unmerged; no new production version was published.
 
-One code repair passed the initial local suite; subsequent boundary tests passed
-too. A general rework rate and total time to verified deliverable were not
+The initial repair and the subsequent benchmark-reader correction passed their
+respective local/CI suites. A general rework rate and total time to verified deliverable were not
 instrumented and are **UNRESOLVED**. There were zero founder intervention requests
 during the authorized trial; no lifecycle-wide autonomy percentage is inferred.
 New paid-service purchases: none. Token/provider billing, CI charges, loaded labor
