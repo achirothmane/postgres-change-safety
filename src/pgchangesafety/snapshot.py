@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .plan import compare_plan_variants
+from .validation import query_map
 
 
 _REQUIRED = {"queryid", "calls"}
@@ -499,10 +500,7 @@ def capture_live(
 def _query_map(
     snapshot: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    return {
-        str(q["fingerprint"]): q
-        for q in snapshot.get("queries", [])
-    }
+    return query_map(snapshot, "snapshot")
 
 
 def derive_window_snapshot(
@@ -824,6 +822,9 @@ def build_assessment_payload(
     ) = None,
     thresholds: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    # Validate before plan/overlap helpers can index and discard duplicate rows.
+    query_map(baseline, "baseline", measured=True)
+    query_map(candidate, "candidate", measured=True)
     _assert_fingerprint_compatibility(
         baseline,
         candidate,

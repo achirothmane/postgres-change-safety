@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from .demo import build_demo_assessment
 from .engine import assess
 from .plan import attach_plan_samples
 from .report import render_html
+from .validation import read_json
 from .snapshot import (
     build_assessment_payload,
     capture_live,
@@ -22,7 +24,7 @@ from .snapshot import (
 def _load_json(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -136,7 +138,7 @@ def _emit(
         output.write_text(rendered + "\n", encoding="utf-8")
 
 
-def main() -> None:
+def _main() -> None:
     parser = argparse.ArgumentParser(
         prog="pgchangesafe",
         description=(
@@ -364,6 +366,14 @@ def main() -> None:
         if args.strict and not strict_pass(report):
             raise SystemExit(1)
         return
+
+
+def main() -> None:
+    try:
+        _main()
+    except ValueError as error:
+        print(f"pgchangesafe: invalid input: {error}", file=sys.stderr)
+        raise SystemExit(2) from None
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from math import log, sqrt
 from statistics import mean
+from .validation import number, query_map, validate_assessment
 from typing import Any
 
 
@@ -57,7 +58,7 @@ class Assessment:
 
 
 def _query_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {str(q["fingerprint"]): q for q in snapshot.get("queries", [])}
+    return query_map(snapshot, "snapshot", measured=True)
 
 
 def _observed_workload_overlap(
@@ -367,6 +368,7 @@ def _coverage(coverage: dict[str, Any]) -> tuple[float, list[str], bool]:
 
 
 def assess(payload: dict[str, Any]) -> Assessment:
+    validate_assessment(payload)
     baseline_snapshot = payload.get("baseline", {})
     candidate_snapshot = payload.get("candidate", {})
     baseline = _query_map(baseline_snapshot)
@@ -396,7 +398,7 @@ def assess(payload: dict[str, Any]) -> Assessment:
         if b <= 0:
             continue
 
-        ratio = c / b
+        ratio = number(c / b, f"comparison latency ratio for {fingerprint}", positive=True)
         if ratio < ratio_threshold or (c - b) < min_delta_ms:
             continue
 
@@ -484,6 +486,9 @@ def assess(payload: dict[str, Any]) -> Assessment:
             )
 
     coverage_score, unknowns, critical_unknown = _coverage(coverage_input)
+    if not baseline:
+        unknowns.append("No observed baseline workload is available for comparison")
+        critical_unknown = True
 
     unresolved_global = sorted(
         {
@@ -500,6 +505,8 @@ def assess(payload: dict[str, Any]) -> Assessment:
         causal_rate = 1.0
 
     evidence_score = coverage_score * 0.72 + (causal_rate * 100.0) * 0.28
+    if not baseline:
+        evidence_score = 0.0
 
     if critical_unknown or unresolved_global:
         evidence_score = min(evidence_score, 69.0)

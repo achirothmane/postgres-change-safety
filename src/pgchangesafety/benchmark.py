@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from .engine import assess
+from .validation import read_json
 
 
 _STRENGTH_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
@@ -157,7 +157,7 @@ def _workload_case_result(
 
 
 def run_blind_benchmark(path: Path) -> dict[str, Any]:
-    suite = json.loads(path.read_text(encoding="utf-8"))
+    suite = read_json(path)
     cases = suite.get("cases", [])
     results: list[dict[str, Any]] = []
 

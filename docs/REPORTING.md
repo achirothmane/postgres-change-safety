@@ -58,3 +58,22 @@ Compare the output with the hash shown in assessment.html.
 Automated offline reporting can be tested in CI. Customer acceptance, commercial
 demand and willingness to pay are **not yet proven**. This is a product component,
 not a paid product by itself.
+## Input validity
+
+`assess` and `compare` require one row per nonempty fingerprint in each snapshot,
+finite positive calls, and a finite positive effective latency (`p95_ms` when
+present, otherwise `mean_ms`). A row without usable observations must be omitted
+and its missing coverage retained as unknown, rather than supplied as zero latency.
+An empty baseline cannot support strong evidence. Cumulative capture/window inputs
+may contain zero counters, but duplicate fingerprints are rejected before indexing.
+
+Coverage percentages must be in [0,100] or unknown (`null`/omitted). Coverage flags
+accept booleans, null, or the existing explicit true/false, yes/no, 1/0 string
+forms. Other strings cannot imply true. Assessment thresholds must be finite,
+with regression ratio > 1 and minimum delta >= 0. These are structural checks;
+they do not authenticate measurements or prove declared coverage.
+
+CLI JSON rejects repeated object members and NaN/Infinity constants. Validation
+errors exit 2, produce a diagnostic on stderr and leave any existing output
+untouched. The HTML report hash applies to assessment JSON, not the truth of its
+input. [Product trial and acceptance evidence](PRODUCT_CASE.md).
