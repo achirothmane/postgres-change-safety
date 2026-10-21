@@ -25,6 +25,13 @@ assets, escapes values, and displays a canonical assessment JSON SHA-256. See
 [reporting and hash verification](docs/REPORTING.md). Review reports for sensitive
 infrastructure details before sharing.
 
+Assessment rejects duplicate fingerprints, missing/nonpositive observations and
+invalid coverage declarations. Split ambiguous measurements into explicitly scoped
+snapshots; do not average percentiles to make duplicates disappear. Invalid CLI
+input exits with status 2 before writing a report. See the
+[input contract and product trial](docs/PRODUCT_CASE.md), including commercial
+gates and the limits of the evidence.
+
 ## 60-second demo — no PostgreSQL required
 
 Install the tagged release directly from GitHub:

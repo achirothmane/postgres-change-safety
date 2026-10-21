@@ -140,7 +140,26 @@ jobs:
             --trial "${{ matrix.trial }}" \
             --output /tmp/real-postgres-workload.json
       - name: Workload-level false-clearance benchmark
-        run: pgchangesafe benchmark /tmp/real-postgres-workload.json --strict
+        run: |
+          pgchangesafe benchmark /tmp/real-postgres-workload.json --strict --json > /tmp/workload-result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          suite = json.loads(Path('/tmp/real-postgres-workload.json').read_text())
+          Path('/tmp/workload-sample-input.json').write_text(json.dumps(suite['cases'][0]['payload']))
+          PY
+          pgchangesafe assess /tmp/workload-sample-input.json --format html --output /tmp/workload-report.html
+      - name: Preserve controlled PostgreSQL evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg-workload-evidence-${{ matrix.trial }}
+          path: |
+            /tmp/real-postgres-workload.json
+            /tmp/workload-result.json
+            /tmp/workload-sample-input.json
+            /tmp/workload-report.html
+          if-no-files-found: warn
 
 
   real-pgss-window:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -19,10 +20,26 @@ from .snapshot import (
 )
 
 
+def _unique_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("JSON contains a duplicate object member")
+        result[key] = value
+    return result
+
+
+def _reject_constant(value: str) -> None:
+    raise ValueError("JSON contains a non-finite constant")
+
+
 def _load_json(path: Path | None) -> dict[str, Any]:
     if path is None:
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_unique_members, parse_constant=_reject_constant,
+    )
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -136,7 +153,7 @@ def _emit(
         output.write_text(rendered + "\n", encoding="utf-8")
 
 
-def main() -> None:
+def _main() -> None:
     parser = argparse.ArgumentParser(
         prog="pgchangesafe",
         description=(
@@ -364,6 +381,14 @@ def main() -> None:
         if args.strict and not strict_pass(report):
             raise SystemExit(1)
         return
+
+
+def main() -> None:
+    try:
+        _main()
+    except ValueError as error:
+        print(f"pgchangesafe: invalid input: {error}", file=sys.stderr)
+        raise SystemExit(2) from None
 
 
 if __name__ == "__main__":
